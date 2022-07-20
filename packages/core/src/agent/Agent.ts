@@ -23,6 +23,7 @@ import { DidsModule } from '../modules/dids/DidsModule'
 import { DiscoverFeaturesModule } from '../modules/discover-features'
 import { GenericRecordsModule } from '../modules/generic-records/GenericRecordsModule'
 import { IndyModule } from '../modules/indy/module'
+import { FabricLedgerService, FabricPool, IndyLedgerService, IndyPoolService } from '../modules/ledger'
 import { LedgerModule } from '../modules/ledger/LedgerModule'
 import { OutOfBandModule } from '../modules/oob/OutOfBandModule'
 import { ProofsModule } from '../modules/proofs/ProofsModule'
@@ -164,7 +165,7 @@ export class Agent {
   }
 
   public async initialize() {
-    const { connectToIndyLedgersOnStartup, publicDidSeed, walletConfig, mediatorConnectionsInvite } = this.agentConfig
+    const { connectToLedgersOnStartup, publicDidSeed, walletConfig, mediatorConnectionsInvite } = this.agentConfig
 
     if (this._isInitialized) {
       throw new AriesFrameworkError(
@@ -211,10 +212,8 @@ export class Agent {
     }
 
     // As long as value isn't false we will async connect to all genesis pools on startup
-    if (connectToIndyLedgersOnStartup) {
-      this.ledger.connectToPools().catch((error) => {
-        this.logger.warn('Error connecting to ledger, will try to reconnect when needed.', { error })
-      })
+    if (connectToLedgersOnStartup) {
+      await this.ledger.connectToPools()
     }
 
     for (const transport of this.inboundTransports) {
@@ -331,6 +330,15 @@ export class Agent {
     }
     if (!dependencyManager.isRegistered(InjectionSymbols.MessageRepository)) {
       dependencyManager.registerSingleton(InjectionSymbols.MessageRepository, InMemoryMessageRepository)
+    }
+    if (!dependencyManager.isRegistered(InjectionSymbols.LedgerService)) {
+      if (this.agentConfig.ledgerType === 'indy') {
+        dependencyManager.registerSingleton(InjectionSymbols.LedgerService, IndyLedgerService)
+        dependencyManager.registerSingleton(IndyPoolService)
+      } else {
+        dependencyManager.registerSingleton(InjectionSymbols.LedgerService, FabricLedgerService)
+        dependencyManager.registerSingleton(FabricPool)
+      }
     }
 
     // Register all modules
