@@ -1,7 +1,7 @@
 import type * as Indy from 'indy-sdk'
 
-import { InjectionSymbols } from '../../../../src/constants'
 import { AgentConfig } from '../../../agent/AgentConfig'
+import { InjectionSymbols } from '../../../constants'
 import { IndySdkError } from '../../../error'
 import { inject, injectable } from '../../../plugins'
 import { isIndyError } from '../../../utils/indyError'

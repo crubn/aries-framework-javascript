@@ -13,10 +13,10 @@ import type { default as Indy, CredDef, LedgerRequest, NymRole } from 'indy-sdk'
 
 import { Lifecycle, scoped } from 'tsyringe'
 
-import { IndySdkError } from '../../../../../src/error'
-import { isIndyError } from '../../../../../src/utils/indyError'
-import { IndyWallet } from '../../../../../src/wallet/IndyWallet'
 import { AgentConfig } from '../../../../agent/AgentConfig'
+import { IndySdkError } from '../../../../error'
+import { isIndyError } from '../../../../utils/indyError'
+import { IndyWallet } from '../../../../wallet/IndyWallet'
 import { IndyIssuerService } from '../../../indy'
 
 import { FabricPool } from './FabricPool'
