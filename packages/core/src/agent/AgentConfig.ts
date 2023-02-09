@@ -139,6 +139,10 @@ export class AgentConfig {
     return this.initConfig.autoUpdateStorageOnStartup ?? false
   }
 
+  public get concurrency() {
+    return this.initConfig.concurrency ?? 1
+  }
+
   public extend(config: Partial<InitConfig>): AgentConfig {
     return new AgentConfig(
       { ...this.initConfig, logger: this.logger, label: this.label, ...config },

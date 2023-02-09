@@ -85,6 +85,7 @@ export interface InitConfig {
   connectionImageUrl?: string
 
   autoUpdateStorageOnStartup?: boolean
+  concurrency?: number
 }
 
 export interface PlaintextMessage {

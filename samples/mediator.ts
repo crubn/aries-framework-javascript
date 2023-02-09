@@ -39,7 +39,7 @@ const socketServer = new Server({ noServer: true })
 
 const endpoints = process.env.AGENT_ENDPOINTS?.split(',') ?? [`http://localhost:${port}`, `ws://localhost:${port}`]
 
-const logger = new TestLogger(LogLevel.info)
+const logger = new TestLogger(LogLevel.debug)
 
 const agentConfig: InitConfig = {
   endpoints,
@@ -51,6 +51,7 @@ const agentConfig: InitConfig = {
   autoAcceptConnections: true,
   autoAcceptMediationRequests: true,
   logger,
+  autoUpdateStorageOnStartup: true,
 }
 
 // Set up agent
@@ -75,7 +76,10 @@ httpInboundTransport.app.get('/invitation', async (req, res) => {
     const invitation = ConnectionInvitationMessage.fromUrl(req.url)
     res.send(invitation.toJSON())
   } else {
-    const { outOfBandInvitation } = await agent.oob.createInvitation()
+    const { outOfBandInvitation } = await agent.oob.createInvitation({
+      multiUseInvitation: true,
+      autoAcceptConnection: true,
+    })
     const httpEndpoint = config.endpoints.find((e) => e.startsWith('http'))
     res.send(outOfBandInvitation.toUrl({ domain: httpEndpoint + '/invitation' }))
   }

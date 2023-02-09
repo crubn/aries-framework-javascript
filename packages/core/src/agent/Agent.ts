@@ -9,7 +9,7 @@ import type { TransportSession } from './TransportService'
 import type { Subscription } from 'rxjs'
 import type { DependencyContainer } from 'tsyringe'
 
-import { concatMap, takeUntil } from 'rxjs/operators'
+import { mergeMap, takeUntil } from 'rxjs/operators'
 import { container as baseContainer } from 'tsyringe'
 
 import { CacheRepository } from '../cache'
@@ -137,12 +137,14 @@ export class Agent {
       .observable<AgentMessageReceivedEvent>(AgentEventTypes.AgentMessageReceived)
       .pipe(
         takeUntil(this.agentConfig.stop$),
-        concatMap((e) =>
-          this.messageReceiver
-            .receiveMessage(e.payload.message, { connection: e.payload.connection })
-            .catch((error) => {
-              this.logger.error('Failed to process message', { error })
-            })
+        mergeMap(
+          (e) =>
+            this.messageReceiver
+              .receiveMessage(e.payload.message, { connection: e.payload.connection })
+              .catch((error) => {
+                this.logger.error('Failed to process message', { error })
+              }),
+          this.agentConfig.concurrency
         )
       )
       .subscribe()
