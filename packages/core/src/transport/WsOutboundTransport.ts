@@ -1,9 +1,9 @@
+import type { OutboundTransport } from './OutboundTransport'
+import type { OutboundWebSocketClosedEvent, OutboundWebSocketOpenedEvent } from './TransportEventTypes'
 import type { Agent } from '../agent/Agent'
 import type { AgentMessageReceivedEvent } from '../agent/Events'
 import type { Logger } from '../logger'
 import type { OutboundPackage } from '../types'
-import type { OutboundTransport } from './OutboundTransport'
-import type { OutboundWebSocketClosedEvent, OutboundWebSocketOpenedEvent } from './TransportEventTypes'
 import type WebSocket from 'ws'
 
 import { AgentConfig } from '../agent/AgentConfig'
@@ -51,20 +51,15 @@ export class WsOutboundTransport implements OutboundTransport {
       throw new AriesFrameworkError("Missing connection or endpoint. I don't know how and where to send the message.")
     }
 
-    const isNewSocket = this.hasOpenSocket(endpoint)
     const socket = await this.resolveSocket({ socketId: endpoint, endpoint, connectionId })
 
     socket.send(Buffer.from(JSON.stringify(payload)))
 
     // If the socket was created for this message and we don't have return routing enabled
     // We can close the socket as it shouldn't return messages anymore
-    if (isNewSocket && !outboundPackage.responseRequested) {
+    if (socket && !outboundPackage.responseRequested) {
       socket.close()
     }
-  }
-
-  private hasOpenSocket(socketId: string) {
-    return this.transportTable.get(socketId) !== undefined
   }
 
   private async resolveSocket({
