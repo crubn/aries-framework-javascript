@@ -7,7 +7,7 @@ import type { InitConfig } from '../types'
 import type { Subscription } from 'rxjs'
 
 import { Subject } from 'rxjs'
-import { concatMap, takeUntil } from 'rxjs/operators'
+import { mergeMap, takeUntil } from 'rxjs/operators'
 
 import { CacheRepository } from '../cache'
 import { InjectionSymbols } from '../constants'
@@ -117,7 +117,7 @@ export class Agent<AgentModules extends AgentModulesInput = any> extends BaseAge
       .observable<AgentMessageReceivedEvent>(AgentEventTypes.AgentMessageReceived)
       .pipe(
         takeUntil(stop$),
-        concatMap((e) =>
+        mergeMap((e) =>
           this.messageReceiver
             .receiveMessage(e.payload.message, {
               connection: e.payload.connection,
