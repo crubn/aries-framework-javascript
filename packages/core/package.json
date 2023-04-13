@@ -2,7 +2,7 @@
   "name": "@trential/aries-framework-core",
   "main": "build/index",
   "types": "build/index",
-  "version": "0.3.3-rc1",
+  "version": "0.3.3-rc2",
   "files": [
     "build"
   ],
