@@ -3,6 +3,7 @@ import type { IndyPoolConfig } from '../IndyPool'
 import type { CredDef, default as Indy, NymRole, Schema } from 'indy-sdk'
 
 import { AgentDependencies } from '../../../agent/AgentDependencies'
+import { CacheRepository, PersistedLruCache } from '../../../cache'
 import { InjectionSymbols } from '../../../constants'
 import { IndySdkError } from '../../../error/IndySdkError'
 import { Logger } from '../../../logger'
@@ -17,6 +18,10 @@ import { IndyIssuerService } from '../../indy/services/IndyIssuerService'
 
 import { IndyPoolService } from './IndyPoolService'
 
+export const SCHEMA_CACHE_ID = 'SCHEMA_CACHE'
+export const SCHEMA_CACHE_LIMIT = 250
+export const CREDENTIAL_DEFINITION_CACHE_ID = 'CREDENTIAL_DEFINITION_CACHE'
+export const CREDENTIAL_DEFINITION_CACHE_LIMIT = 250
 @injectable()
 export class IndyLedgerService {
   private indy: typeof Indy
@@ -24,17 +29,27 @@ export class IndyLedgerService {
 
   private indyIssuer: IndyIssuerService
   private indyPoolService: IndyPoolService
+  private schemaCache: PersistedLruCache<Schema>
+  private credentialDefinitionCache: PersistedLruCache<CredDef>
 
   public constructor(
     @inject(InjectionSymbols.AgentDependencies) agentDependencies: AgentDependencies,
     @inject(InjectionSymbols.Logger) logger: Logger,
     indyIssuer: IndyIssuerService,
-    indyPoolService: IndyPoolService
+    indyPoolService: IndyPoolService,
+    cacheRepository: CacheRepository
   ) {
     this.indy = agentDependencies.indy
     this.logger = logger
     this.indyIssuer = indyIssuer
     this.indyPoolService = indyPoolService
+
+    this.schemaCache = new PersistedLruCache(SCHEMA_CACHE_ID, SCHEMA_CACHE_LIMIT, cacheRepository)
+    this.credentialDefinitionCache = new PersistedLruCache(
+      CREDENTIAL_DEFINITION_CACHE_ID,
+      CREDENTIAL_DEFINITION_CACHE_LIMIT,
+      cacheRepository
+    )
   }
 
   public setPools(poolConfigs: IndyPoolConfig[]) {
@@ -200,6 +215,10 @@ export class IndyLedgerService {
   }
 
   public async getSchema(agentContext: AgentContext, schemaId: string) {
+    const cachedSchema = await this.schemaCache.get(agentContext, schemaId)
+    if (cachedSchema) {
+      return cachedSchema
+    }
     const did = didFromSchemaId(schemaId)
     const { pool } = await this.indyPoolService.getPoolForDid(agentContext, did)
 
@@ -220,6 +239,7 @@ export class IndyLedgerService {
         schema,
       })
 
+      await this.schemaCache.set(agentContext, schemaId, schema)
       return schema
     } catch (error) {
       this.logger.error(`Error retrieving schema '${schemaId}' from ledger '${pool.id}'`, {
@@ -278,6 +298,10 @@ export class IndyLedgerService {
   }
 
   public async getCredentialDefinition(agentContext: AgentContext, credentialDefinitionId: string) {
+    const cachedCredentialDefinition = await this.credentialDefinitionCache.get(agentContext, credentialDefinitionId)
+    if (cachedCredentialDefinition) {
+      return cachedCredentialDefinition
+    }
     const did = didFromCredentialDefinitionId(credentialDefinitionId)
     const { pool } = await this.indyPoolService.getPoolForDid(agentContext, did)
 
@@ -299,7 +323,7 @@ export class IndyLedgerService {
       this.logger.debug(`Got credential definition '${credentialDefinitionId}' from ledger '${pool.id}'`, {
         credentialDefinition,
       })
-
+      await this.credentialDefinitionCache.set(agentContext, credentialDefinitionId, credentialDefinition)
       return credentialDefinition
     } catch (error) {
       this.logger.error(`Error retrieving credential definition '${credentialDefinitionId}' from ledger '${pool.id}'`, {
