@@ -22,6 +22,8 @@ export const SCHEMA_CACHE_ID = 'SCHEMA_CACHE'
 export const SCHEMA_CACHE_LIMIT = 250
 export const CREDENTIAL_DEFINITION_CACHE_ID = 'CREDENTIAL_DEFINITION_CACHE'
 export const CREDENTIAL_DEFINITION_CACHE_LIMIT = 250
+export const REVOCATION_REGISTRY_DEFINITION_CACHE_ID = 'REVOCATION_REGISTRY_DEFINITION_CACHE'
+export const REVOCATION_REGISTRY_DEFINITION_CACHE_LIMIT = 250
 @injectable()
 export class IndyLedgerService {
   private indy: typeof Indy
@@ -31,6 +33,7 @@ export class IndyLedgerService {
   private indyPoolService: IndyPoolService
   private schemaCache: PersistedLruCache<Schema>
   private credentialDefinitionCache: PersistedLruCache<CredDef>
+  private revocationRegistryDefinitionCache: PersistedLruCache<ParseRevocationRegistryDefinitionTemplate>
 
   public constructor(
     @inject(InjectionSymbols.AgentDependencies) agentDependencies: AgentDependencies,
@@ -48,6 +51,11 @@ export class IndyLedgerService {
     this.credentialDefinitionCache = new PersistedLruCache(
       CREDENTIAL_DEFINITION_CACHE_ID,
       CREDENTIAL_DEFINITION_CACHE_LIMIT,
+      cacheRepository
+    )
+    this.revocationRegistryDefinitionCache = new PersistedLruCache(
+      REVOCATION_REGISTRY_DEFINITION_CACHE_ID,
+      REVOCATION_REGISTRY_DEFINITION_CACHE_LIMIT,
       cacheRepository
     )
   }
@@ -340,6 +348,13 @@ export class IndyLedgerService {
     agentContext: AgentContext,
     revocationRegistryDefinitionId: string
   ): Promise<ParseRevocationRegistryDefinitionTemplate> {
+    const cachedRevocationRegistryDefinition = await this.revocationRegistryDefinitionCache.get(
+      agentContext,
+      revocationRegistryDefinitionId
+    )
+    if (cachedRevocationRegistryDefinition) {
+      return cachedRevocationRegistryDefinition
+    }
     const did = didFromRevocationRegistryDefinitionId(revocationRegistryDefinitionId)
     const { pool } = await this.indyPoolService.getPoolForDid(agentContext, did)
 
@@ -369,6 +384,11 @@ export class IndyLedgerService {
 
       this.logger.debug(`Got revocation registry definition '${revocationRegistryDefinitionId}' from ledger`, {
         revocationRegistryDefinition,
+      })
+
+      await this.revocationRegistryDefinitionCache.set(agentContext, revocationRegistryDefinitionId, {
+        revocationRegistryDefinition,
+        revocationRegistryDefinitionTxnTime: response.result.txnTime,
       })
 
       return { revocationRegistryDefinition, revocationRegistryDefinitionTxnTime: response.result.txnTime }
