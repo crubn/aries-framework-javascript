@@ -8,4 +8,5 @@ export interface MessageRepository {
     keepMessages?: boolean
   ): EncryptedMessage[] | Promise<EncryptedMessage[]>
   add(connectionId: string, payload: EncryptedMessage): void | Promise<void>
+  addForwardMessage?(connectionId: string, payload: EncryptedMessage): Promise<string>
 }
