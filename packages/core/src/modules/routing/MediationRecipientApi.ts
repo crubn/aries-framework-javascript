@@ -454,7 +454,7 @@ export class MediationRecipientApi {
     this.logger.debug('Connection completed, requesting mediation')
 
     let mediation = await this.findByConnectionId(connection.id)
-    if (!mediation) {
+    if (!mediation || (mediation && mediation.state == MediationState.Requested)) {
       this.logger.info(`Requesting mediation for connection ${connection.id}`)
       mediation = await this.requestAndAwaitGrant(connection, 60000) // TODO: put timeout as a config parameter
       this.logger.debug('Mediation granted, setting as default mediator')

@@ -690,7 +690,8 @@ export class OutOfBandApi {
     this.logger.debug('Searching for an existing connection for out-of-band invitation.', { outOfBandInvitation })
 
     for (const invitationDid of outOfBandInvitation.invitationDids) {
-      const connections = await this.connectionsApi.findByInvitationDid(invitationDid)
+      let connections = await this.connectionsApi.findByInvitationDid(invitationDid)
+      connections = connections.filter((c) => c.state == DidExchangeState.Completed)
       this.logger.debug(`Retrieved ${connections.length} connections for invitation did ${invitationDid}`)
 
       if (connections.length === 1) {
