@@ -7,7 +7,7 @@ import { InjectionSymbols } from '../../../constants'
 import { IndySdkError } from '../../../error/IndySdkError'
 import { Logger } from '../../../logger'
 import { injectable, inject } from '../../../plugins'
-import { isIndyError } from '../../../utils/indyError'
+import { indyErrors, isIndyError } from '../../../utils/indyError'
 import { assertIndyWallet } from '../../../wallet/util/assertIndyWallet'
 
 import { IndyRevocationService } from './IndyRevocationService'
@@ -234,33 +234,23 @@ export class IndyHolderService {
   }
 
   private async fetchCredentialsForReferent(searchHandle: number, referent: string, limit?: number) {
-    try {
-      let credentials: Indy.IndyCredential[] = []
-
-      // Allow max of 256 per fetch operation
-      const chunk = limit ? Math.min(256, limit) : 256
-
-      // Loop while limit not reached (or no limit specified)
-      while (!limit || credentials.length < limit) {
-        // Retrieve credentials
-        const credentialsJson = await this.indy.proverFetchCredentialsForProofReq(searchHandle, referent, chunk)
+    // fetch one credential at a time to prevent
+    // IndyError: CommonInvalidStructure, due to predicates
+    let credentials: Indy.IndyCredential[] = []
+    while (!limit || credentials.length < limit) {
+      try {
+        const credentialsJson = await this.indy.proverFetchCredentialsForProofReq(searchHandle, referent, 1)
         credentials = [...credentials, ...credentialsJson]
-
-        // If the number of credentials returned is less than chunk
-        // It means we reached the end of the iterator (no more credentials)
-        if (credentialsJson.length < chunk) {
+        if (credentialsJson.length < 1) {
           return credentials
         }
+      } catch (error) {
+        if (isIndyError(error) && error.indyName == indyErrors[113]) continue
+        throw isIndyError(error) ? new IndySdkError(error) : error
       }
-
-      return credentials
-    } catch (error) {
-      this.logger.error(`Error Fetching Indy Credentials For Referent`, {
-        error,
-      })
-
-      throw isIndyError(error) ? new IndySdkError(error) : error
     }
+
+    return credentials
   }
 }
 
