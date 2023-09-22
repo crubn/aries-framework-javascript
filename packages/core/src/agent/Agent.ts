@@ -158,7 +158,7 @@ export class Agent<AgentModules extends AgentModulesInput = any> extends BaseAge
     return this.featureRegistry
   }
 
-  public async initialize() {
+  public async initialize(offline = false) {
     await super.initialize()
 
     // set the pools on the ledger.
@@ -178,20 +178,22 @@ export class Agent<AgentModules extends AgentModulesInput = any> extends BaseAge
       await transport.start(this)
     }
 
-    // Connect to mediator through provided invitation if provided in config
-    // Also requests mediation ans sets as default mediator
-    // Because this requires the connections module, we do this in the agent constructor
-    if (this.mediationRecipient.config.mediatorInvitationUrl) {
-      this.logger.debug('Provision mediation with invitation', {
-        mediatorInvitationUrl: this.mediationRecipient.config.mediatorInvitationUrl,
-      })
-      const mediationConnection = await this.getMediationConnection(
-        this.mediationRecipient.config.mediatorInvitationUrl
-      )
-      await this.mediationRecipient.provision(mediationConnection)
+    if (!offline) {
+      // Connect to mediator through provided invitation if provided in config
+      // Also requests mediation ans sets as default mediator
+      // Because this requires the connections module, we do this in the agent constructor
+      if (this.mediationRecipient.config.mediatorInvitationUrl) {
+        this.logger.debug('Provision mediation with invitation', {
+          mediatorInvitationUrl: this.mediationRecipient.config.mediatorInvitationUrl,
+        })
+        const mediationConnection = await this.getMediationConnection(
+          this.mediationRecipient.config.mediatorInvitationUrl
+        )
+        await this.mediationRecipient.provision(mediationConnection)
+      }
+      await this.mediator.initialize()
+      await this.mediationRecipient.initialize()
     }
-    await this.mediator.initialize()
-    await this.mediationRecipient.initialize()
 
     this._isInitialized = true
   }
@@ -235,10 +237,17 @@ export class Agent<AgentModules extends AgentModulesInput = any> extends BaseAge
       }
 
       return this.connections.returnWhenIsConnected(newConnection.id)
-    }
-
-    if (!connection.isReady) {
-      return this.connections.returnWhenIsConnected(connection.id)
+    } else if (outOfBandRecord && !connection.isReady) {
+      this.logger.debug('Retrying connection with mediator')
+      const routing = await this.mediationRecipient.getRouting({ useDefaultMediator: false })
+      const { connectionRecord: newConnection } = await this.oob.acceptInvitation(outOfBandRecord.id, {
+        routing,
+        autoAcceptConnection: true,
+      })
+      if (!newConnection) {
+        throw new AriesFrameworkError('No connection record to provision mediation.')
+      }
+      return this.connections.returnWhenIsConnected(newConnection.id)
     }
     return connection
   }
