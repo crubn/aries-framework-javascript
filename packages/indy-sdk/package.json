@@ -1,5 +1,5 @@
 {
-  "name": "@aries-framework/indy-sdk",
+  "name": "@trential/aries-framework-indy-sdk",
   "main": "build/index",
   "types": "build/index",
   "version": "0.4.1",

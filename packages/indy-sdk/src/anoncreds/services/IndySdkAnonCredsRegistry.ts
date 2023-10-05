@@ -35,7 +35,19 @@ import {
 } from '../utils/identifiers'
 import { anonCredsRevocationStatusListFromIndySdk } from '../utils/transform'
 
+interface PersistedLruCache<T> {
+  get(id: string): Promise<T | undefined>
+  set(id: string, value: T): Promise<void>
+}
+
 export class IndySdkAnonCredsRegistry implements AnonCredsRegistry {
+  public constructor(
+    private readonly cache?: {
+      schema: PersistedLruCache<GetSchemaReturn>
+      credDef: PersistedLruCache<GetCredentialDefinitionReturn>
+      revocReg: PersistedLruCache<GetRevocationRegistryDefinitionReturn>
+    }
+  ) {}
   public readonly methodName = 'indy'
 
   /**
@@ -46,6 +58,15 @@ export class IndySdkAnonCredsRegistry implements AnonCredsRegistry {
   public readonly supportedIdentifier = indySdkAnonCredsRegistryIdentifierRegex
 
   public async getSchema(agentContext: AgentContext, schemaId: string): Promise<GetSchemaReturn> {
+    if (!this.cache) return this.__getSchema(agentContext, schemaId)
+    const cached = await this.cache.schema.get(schemaId)
+    if (cached) return cached
+    const schema = await this.__getSchema(agentContext, schemaId)
+    await this.cache.schema.set(schemaId, schema)
+    return schema
+  }
+
+  private async __getSchema(agentContext: AgentContext, schemaId: string): Promise<GetSchemaReturn> {
     try {
       const indySdkPoolService = agentContext.dependencyManager.resolve(IndySdkPoolService)
       const indySdk = agentContext.dependencyManager.resolve<IndySdk>(IndySdkSymbol)
@@ -189,6 +210,18 @@ export class IndySdkAnonCredsRegistry implements AnonCredsRegistry {
   }
 
   public async getCredentialDefinition(
+    agentContext: AgentContext,
+    credentialDefinitionId: string
+  ): Promise<GetCredentialDefinitionReturn> {
+    if (!this.cache) return this.__getCredentialDefinition(agentContext, credentialDefinitionId)
+    const cached = await this.cache.credDef.get(credentialDefinitionId)
+    if (cached) return cached
+    const credDef = await this.__getCredentialDefinition(agentContext, credentialDefinitionId)
+    await this.cache.credDef.set(credentialDefinitionId, credDef)
+    return credDef
+  }
+
+  private async __getCredentialDefinition(
     agentContext: AgentContext,
     credentialDefinitionId: string
   ): Promise<GetCredentialDefinitionReturn> {
@@ -376,6 +409,18 @@ export class IndySdkAnonCredsRegistry implements AnonCredsRegistry {
   }
 
   public async getRevocationRegistryDefinition(
+    agentContext: AgentContext,
+    revocationRegistryDefinitionId: string
+  ): Promise<GetRevocationRegistryDefinitionReturn> {
+    if (!this.cache) return this.__getRevocationRegistryDefinition(agentContext, revocationRegistryDefinitionId)
+    const cached = await this.cache.revocReg.get(revocationRegistryDefinitionId)
+    if (cached) return cached
+    const revocReg = await this.__getRevocationRegistryDefinition(agentContext, revocationRegistryDefinitionId)
+    await this.cache.revocReg.set(revocationRegistryDefinitionId, revocReg)
+    return revocReg
+  }
+
+  private async __getRevocationRegistryDefinition(
     agentContext: AgentContext,
     revocationRegistryDefinitionId: string
   ): Promise<GetRevocationRegistryDefinitionReturn> {
