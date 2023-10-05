@@ -8,7 +8,7 @@ import type { InitConfig } from '../types'
 import type { Subscription } from 'rxjs'
 
 import { Subject } from 'rxjs'
-import { concatMap, takeUntil } from 'rxjs/operators'
+import { mergeMap, takeUntil } from 'rxjs/operators'
 
 import { InjectionSymbols } from '../constants'
 import { SigningProviderToken } from '../crypto'
@@ -147,7 +147,7 @@ export class Agent<AgentModules extends AgentModulesInput = any> extends BaseAge
     return this.featureRegistry
   }
 
-  public async initialize() {
+  public async initialize(offline = false) {
     const stop$ = this.dependencyManager.resolve<Subject<boolean>>(InjectionSymbols.Stop$)
 
     // Listen for new messages (either from transports or somewhere else in the framework / extensions)
@@ -156,7 +156,7 @@ export class Agent<AgentModules extends AgentModulesInput = any> extends BaseAge
       .observable<AgentMessageReceivedEvent>(AgentEventTypes.AgentMessageReceived)
       .pipe(
         takeUntil(stop$),
-        concatMap((e) =>
+        mergeMap((e) =>
           this.messageReceiver
             .receiveMessage(e.payload.message, {
               connection: e.payload.connection,
@@ -185,20 +185,22 @@ export class Agent<AgentModules extends AgentModulesInput = any> extends BaseAge
       await transport.start(this)
     }
 
-    // Connect to mediator through provided invitation if provided in config
-    // Also requests mediation ans sets as default mediator
-    // Because this requires the connections module, we do this in the agent constructor
-    if (this.mediationRecipient.config.mediatorInvitationUrl) {
-      this.logger.debug('Provision mediation with invitation', {
-        mediatorInvitationUrl: this.mediationRecipient.config.mediatorInvitationUrl,
-      })
-      const mediationConnection = await this.getMediationConnection(
-        this.mediationRecipient.config.mediatorInvitationUrl
-      )
-      await this.mediationRecipient.provision(mediationConnection)
+    if (!offline) {
+      // Connect to mediator through provided invitation if provided in config
+      // Also requests mediation ans sets as default mediator
+      // Because this requires the connections module, we do this in the agent constructor
+      if (this.mediationRecipient.config.mediatorInvitationUrl) {
+        this.logger.debug('Provision mediation with invitation', {
+          mediatorInvitationUrl: this.mediationRecipient.config.mediatorInvitationUrl,
+        })
+        const mediationConnection = await this.getMediationConnection(
+          this.mediationRecipient.config.mediatorInvitationUrl
+        )
+        await this.mediationRecipient.provision(mediationConnection)
+      }
+      await this.mediator.initialize()
+      await this.mediationRecipient.initialize()
     }
-    await this.mediator.initialize()
-    await this.mediationRecipient.initialize()
 
     this._isInitialized = true
   }
@@ -242,10 +244,17 @@ export class Agent<AgentModules extends AgentModulesInput = any> extends BaseAge
       }
 
       return this.connections.returnWhenIsConnected(newConnection.id)
-    }
-
-    if (!connection.isReady) {
-      return this.connections.returnWhenIsConnected(connection.id)
+    } else if (outOfBandRecord && !connection.isReady) {
+      this.logger.debug('Retrying connection with mediator')
+      const routing = await this.mediationRecipient.getRouting({ useDefaultMediator: false })
+      const { connectionRecord: newConnection } = await this.oob.acceptInvitation(outOfBandRecord.id, {
+        routing,
+        autoAcceptConnection: true,
+      })
+      if (!newConnection) {
+        throw new AriesFrameworkError('No connection record to provision mediation.')
+      }
+      return this.connections.returnWhenIsConnected(newConnection.id)
     }
     return connection
   }
